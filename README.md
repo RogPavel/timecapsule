@@ -1,232 +1,82 @@
-# MiniBox: a tiny personal drive in PHP
+Отчёт по лабораторной работе: Основы AWS и EC2
 
-MiniBox is a very small personal file storage ("drive"). You sign up with an email and a
-password, then upload files (with an optional description), see your list of files, download
-or delete them. Every user sees only their own files.
+ФИО: Рогалин Павел
 
-It is written in plain object-oriented PHP (8.2+) without a framework. The database is PostgreSQL,
-and uploaded files are saved in a folder on the server. [Composer](https://getcomposer.org)
-installs the only library, [vlucas/phpdotenv](https://github.com/vlucas/phpdotenv) (reads `.env`),
-and loads our classes (`App\Foo` lives in `src/Foo.php`).
+Группа: IA2404
 
-## How the code is organised
+Выбранный уровень: Базовый
+1. Скриншоты выполнения заданий
+Задание 1: Настройка бюджета
 
-```
-public/index.php              every request starts here
-public/css/app.css            the stylesheet
-public/too-large.html         page nginx shows for files over 32 MB
-src/App.php                   creates the objects, lists the routes, checks CSRF, shows error pages
-src/Router.php                tiny router: "GET /files/(\d+)/download" -> function
-src/Config.php                reads settings from the environment / .env
-src/Database.php              PDO connection to PostgreSQL
-src/Auth.php                  who is logged in (the session stores the user id)
-src/Csrf.php                  secret token for every form
-src/Storage.php               saves, sends and deletes files in the upload folder
-src/View.php                  renders templates; escaping, flash messages, formatting, icons
-src/Models/Model.php          base class: gives models the database
-src/Models/User.php           users: find, create, check password
-src/Models/File.php           files: list / find / create / delete, always for one user
-src/Exceptions/HttpException.php      "stop and show a 404 / 403 page"
-src/Exceptions/RedirectException.php  "stop and go to another page"
-src/Controllers/AuthController.php    sign up, log in, log out
-src/Controllers/FileController.php    list, upload, download, delete
-src/Controllers/HealthController.php  GET /health
-views/                        HTML templates (layout, index, login, register, error)
-bin/init-db.php               creates the tables
-database/schema.sql           the tables: users, files
-storage/uploads/              uploaded files (random names)
-storage/sessions/             PHP session files (login and messages)
-```
+![Бюджет ZeroSpend](Screenshot_1.png)
 
-What happens on an upload (`POST /upload`):
+На скриншоте виден созданный бюджет ZeroSpend с нулевым порогом в списке Budgets.
+Задание 2: Запуск экземпляра EC2 и страница Nginx
 
-1. `App` checks the form's CSRF token, then `Router` calls `FileController::upload()`.
-2. `Auth::requireUser()` makes sure somebody is logged in (otherwise: go to `/login`).
-3. The controller checks the file (chosen, not empty, not larger than `MAX_UPLOAD_MB`).
-4. `Storage::save()` moves it into `storage/uploads/` under a random name.
-5. `File::create()` saves the owner, original name, type and size in the database.
-6. The browser is redirected back to `/`, which shows "Uploaded ...".
+![Экземпляр webserver в состоянии Running](Screenshot_2.png)
 
-Security basics used in the code: passwords are stored with `password_hash()`, the session id
-changes after login, every form has a CSRF token, all output is escaped, SQL uses placeholders,
-and a file that belongs to somebody else is simply "not found" (404).
+На скриншоте виден экземпляр webserver в состоянии Running с пройденными проверками Status check (2/2).
 
-### Pages
+![Страница Nginx по публичному IP](Screenshot_3.png)
 
-| Method | URL | What it does |
-|---|---|---|
-| GET | `/` | Upload form and your files (visitors are sent to `/login`) |
-| POST | `/upload` | Upload a file |
-| GET | `/files/{id}/download` | Download a file |
-| POST | `/files/{id}/delete` | Delete a file |
-| GET, POST | `/register` | Sign up |
-| GET, POST | `/login` | Log in |
-| POST | `/logout` | Log out |
-| GET | `/health` | `{"status":"ok","db":"ok","hostname":"..."}` (500 when the database is not reachable) |
+На скриншоте представлена приветственная страница Nginx, открытая в браузере по публичному IP-адресу экземпляра.
+Задание 3: Мониторинг и системный лог
 
-The footer of every page shows the server name, the database host and where files are stored.
+![Вкладка Monitoring и System Log](Screenshot_4.png)
 
-## Run with Docker
+На скриншоте показана вкладка Monitoring и фрагмент вывода System log с процессом установки пакета nginx.
+Задание 4: Подключение по SSH
 
-Docker Desktop must be running (Windows and macOS).
+![Подключение по SSH](Screenshot_5.png)
 
-```bash
-docker compose up --build
-```
+На скриншоте показано успешное подключение к экземпляру по SSH и вывод команды systemctl status nginx.
+Задание 5: Развёртывание статического сайта
 
-Open http://localhost:8080 and sign up. Docker starts four containers:
+![Статический сайт в браузере](Screenshot_6.png)
 
-| Container | What it is |
-|---|---|
-| `web` | nginx. Serves `public/` and sends PHP requests to `app`. Config: `docker/nginx.conf` |
-| `app` | PHP-FPM with the code. On start it creates the tables (`php bin/init-db.php`) |
-| `db` | PostgreSQL 16 |
-| `adminer` | Web UI for the database |
+На скриншоте виден развёрнутый статический сайт, открытый в браузере по публичному IP-адресу.
 
-**Adminer** is at http://localhost:8081. Log in with System `PostgreSQL`, Server `db`,
-Username `minibox`, Password `secret`, Database `minibox`.
+![Вывод содержимого директории](Screenshot_9.png Screenshot_7.png Screenshot_8.png)
 
-Useful commands:
+На скриншоте показан вывод команды ls -l /usr/share/nginx/html с загруженными HTML-файлами.
+Задание 6: Остановка экземпляра через AWS CLI
 
-```bash
-docker compose logs -f web app                        # nginx and PHP logs
-docker compose exec db psql -U minibox                # SQL shell
-docker compose down                                   # stop (data is kept)
-docker compose down -v                                # stop and delete the database
-```
+![Остановка экземпляра через AWS CLI](Screenshot_11.png)
 
-Uploaded files appear in `storage/uploads/` of this folder (it is mounted into the `app`
-container). `docker compose up` rebuilds the app image each time, so it always runs the current code.
+На скриншоте представлена команда aws ec2 stop-instances и полученный от неё JSON-вывод со статусом stopping.
+2. Ответы на контрольные вопросы
+Вопрос из Задания 1
 
-Other host ports (when 8080, 5432 or 8081 are already taken):
+Что разрешает политика AdministratorAccess? Почему для повседневной работы нельзя использовать root?
 
-```bash
-APP_HOST_PORT=9080 DB_HOST_PORT=5433 ADMINER_HOST_PORT=9081 docker compose up -d            # macOS / Linux
-$env:APP_HOST_PORT="9080"; $env:DB_HOST_PORT="5433"; $env:ADMINER_HOST_PORT="9081"; docker compose up -d   # Windows PowerShell
-```
+Политика AdministratorAccess предоставляет полные права на создание, изменение, просмотр и удаление любых ресурсов внутри всех сервисов AWS. Использовать root-аккаунт для повседневной работы крайне опасно, так как он обладает абсолютным неограниченным доступом (включая закрытие аккаунта и финансовые операции) и не поддаётся сужению прав. В случае компрометации root-учётной записи или случайной ошибки администратора последствия будут критическими, поэтому повседневную работу необходимо вести под ограниченным IAM-пользователем.
+Вопрос из Задания 2
 
-## Run without Docker
+Что такое User data и когда выполняется этот скрипт? Выполнится ли он повторно после перезагрузки экземпляра?
 
-You need PHP 8.2+ ([XAMPP](https://www.apachefriends.org) works) with the extensions `pdo_pgsql`,
-`mbstring`, `fileinfo`, [Composer](https://getcomposer.org/download/) and a PostgreSQL database
-you can connect to. Windows: see
-[Setting up a Windows computer](../README.md#setting-up-a-windows-computer).
+User data — это набор команд или скрипт инициализации, который передаётся экземпляру EC2 при его создании для автоматической первоначальной настройки системы (установки ПО, конфигурации, запуска служб). Этот скрипт автоматически выполняется от имени пользователя root один раз при самом первом запуске (бутстрапе) виртуальной машины. При последующих штатных перезагрузках (Reboot) или циклах остановки и запуска (Stop/Start) скрипт повторно не выполняется.
+Вопрос из Задания 3 (Часть 1)
 
-1. Install the library and create the settings file:
+Какая из проверок укажет на проблему, которую можете исправить вы, а какая на проблему на стороне AWS?
 
-   ```bash
-   composer install
-   cp .env.example .env
-   ```
+Instance status check указывает на проблему, которую должен исправлять пользователь, так как она отслеживает программные сбои внутри самой виртуальной машины (паника ядра, ошибки конфигурации сети или ОС, зависание файловой системы). System status check указывает на сбои на стороне AWS (неисправность физического сервера, стойки, сетевого оборудования или гипервизора); для её решения AWS обычно автоматически мигрирует экземпляр на исправное оборудование при перезапуске.
+Вопрос из Задания 3 (Часть 2)
 
-2. Open `.env` and enter your database: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
+В каких случаях стоит включать детальный мониторинг (Detailed monitoring)?
 
-3. Create the tables and start the app:
+Детальный мониторинг стоит включать для высоконагруженных и критически важных (production) систем, где 5-минутная задержка базовых метрик CloudWatch не позволяет быстро среагировать на аварии. Он необходим при настройке чувствительных правил автомасштабирования (Auto Scaling), чтобы оперативно регистрировать всплески нагрузки (каждую 1 минуту), а также при отладке узких мест производительности в реальном времени.
+Вопрос из Задания 4
 
-   ```bash
-   php bin/init-db.php
-   php -S localhost:8080 -t public -d upload_max_filesize=12M -d post_max_size=14M
-   ```
+Почему для входа на экземпляр EC2 используется ключ, а не пароль?
 
-4. Open http://localhost:8080 and sign up.
+Асимметричные SSH-ключи обеспечивают кардинально более высокий уровень безопасности по сравнению с паролями, так как они устойчивы к атакам методом перебора (brute-force) и перехвату трафика. Кроме того, использование ключей позволяет исключить человеческий фактор (слабые пароли) и упрощает автоматизацию подключений и скриптов управления без необходимости безопасного хранения паролей.
+Вопрос из Задания 5
 
-The `-d` options raise PHP's upload limits (without them PHP accepts only 2 MB).
-If a page says "The database has no tables yet", run `php bin/init-db.php`.
-If it says "Cannot connect to the database", check the `DB_*` values in `.env`.
+Что делает команда scp и чем она похожа на ssh?
 
-## Configuration
+Команда scp (Secure Copy Protocol) предназначена для безопасной передачи файлов между локальным компьютером и удалённым сервером (или между двумя серверами). Она похожа на ssh тем, что использует тот же самый протокол и порт SSH (порт 22), так же применяет асимметричные SSH-ключи для аутентификации и полностью шифрует передаваемый трафик.
+Вопрос из Задания 6
 
-Settings come from environment variables or from `.env` (environment variables win).
+Чем Stop отличается от Terminate? За что вы продолжаете платить, пока экземпляр остановлен?
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `DB_HOST` | `127.0.0.1` | PostgreSQL host |
-| `DB_PORT` | `5432` | PostgreSQL port |
-| `DB_NAME` | `minibox` | Database name |
-| `DB_USER` | `minibox` | Database user |
-| `DB_PASSWORD` | `secret` | Database password |
-| `UPLOAD_DIR` | `storage/uploads` | Where files are saved (relative to the project folder, or an absolute path such as `/srv/minibox` or `C:\minibox\uploads`) |
-| `MAX_UPLOAD_MB` | `10` | Largest file the app accepts |
-| `APP_DEBUG` | `false` | `true` shows error details on the error page |
-
-Upload size is limited in three places. Keep them in this order:
-`MAX_UPLOAD_MB` (10) < PHP `upload_max_filesize` / `post_max_size` (12M / 14M, `docker/php.ini`)
-< nginx `client_max_body_size` (32M). Then files that are too big get a clear message from the app.
-
-## Deploying to an Ubuntu server (nginx + PHP-FPM)
-
-Tested with Ubuntu 24.04, which ships PHP 8.3. These commands run on the Linux server (connect
-first, for example with `ssh ubuntu@<server-ip>`).
-
-1. **Install the packages**
-
-   ```bash
-   sudo apt update
-   sudo apt install -y nginx php8.3-fpm php8.3-cli php8.3-pgsql php8.3-mbstring php8.3-xml \
-       composer unzip git postgresql
-   ```
-
-2. **Create the database**
-
-   ```bash
-   sudo -u postgres psql -c "CREATE USER minibox WITH PASSWORD 'choose-a-password';"
-   sudo -u postgres psql -c "CREATE DATABASE minibox OWNER minibox;"
-   ```
-
-3. **Copy the app and install the library**
-
-   ```bash
-   git clone <your-repo-url> /tmp/minibox-src
-   sudo mkdir -p /var/www/minibox
-   sudo cp -r /tmp/minibox-src/dropbox_php_oop/. /var/www/minibox/
-   cd /var/www/minibox
-   sudo composer install --no-dev --optimize-autoloader
-   ```
-
-4. **Configure**
-
-   ```bash
-   sudo cp .env.example .env
-   sudo nano .env                 # set DB_PASSWORD (and DB_HOST if the database is elsewhere)
-   php bin/init-db.php
-   ```
-
-5. **Permissions**: PHP-FPM runs as `www-data` and writes to `storage/`.
-
-   ```bash
-   sudo chown -R www-data:www-data storage
-   sudo chmod 640 .env && sudo chown root:www-data .env
-   ```
-
-6. **PHP upload limits**: create `/etc/php/8.3/fpm/conf.d/99-minibox.ini`:
-
-   ```ini
-   upload_max_filesize = 12M
-   post_max_size = 14M
-   display_errors = Off
-   ```
-
-   ```bash
-   sudo systemctl restart php8.3-fpm
-   ```
-
-7. **nginx**
-
-   ```bash
-   sudo cp deploy/nginx.conf /etc/nginx/sites-available/minibox
-   sudo ln -s /etc/nginx/sites-available/minibox /etc/nginx/sites-enabled/minibox
-   sudo rm -f /etc/nginx/sites-enabled/default
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
-
-8. **Firewall and check**
-
-   ```bash
-   sudo ufw allow 'Nginx HTTP'
-   curl http://localhost/health
-   ```
-
-   Open `http://<server-ip>/` in the browser.
-
-To update later: copy the new code, run `composer install --no-dev` and `php bin/init-db.php`,
-then `sudo systemctl reload php8.3-fpm`.
+При Stop виртуальная машина выключается (как обычный ПК), но её конфигурация и подключенные тома EBS сохраняются, что позволяет запустить её снова в любой момент. При Terminate экземпляр полностью и безвозвратно удаляется из инфраструктуры AWS вместе с локальными томами. Пока экземпляр остановлен (Stop), вы прекращаете платить за вычислительные мощности (CPU/RAM EC2), но продолжаете платить за выделенный диск (EBS-том), зарезервированные статические IP-адреса (Elastic IP) и сохранённые снапшоты.
